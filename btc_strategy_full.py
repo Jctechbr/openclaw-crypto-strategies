@@ -354,7 +354,7 @@ def send_report_via_telegram(report_text, chart_path=None):
         cmd = [
             'openclaw', 'message', 'send',
             '--channel', 'telegram',
-            '--target', '195050411',
+            '--target', '-1003787617512',
             '--message', report_text
         ]
         subprocess.run(cmd, capture_output=True, text=True)
@@ -364,7 +364,7 @@ def send_report_via_telegram(report_text, chart_path=None):
             cmd = [
                 'openclaw', 'message', 'send',
                 '--channel', 'telegram',
-                '--target', '195050411',
+                '--target', '-1003787617512',
                 '--message', '📈 Price Chart Analysis',
                 '--media', chart_path
             ]
