@@ -1,0 +1,16 @@
+Running ETH Backtests...
+[1h] Trades: 12, Win Rate: 58.3%, PnL: -0.2%
+[2h] Trades: 14, Win Rate: 64.3%, PnL: 1.5%
+[4h] Trades: 13, Win Rate: 38.5%, PnL: -3.3%
+
+--- ANALYSIS ---
+1. Signals/Actions in last 24h (2h TF): 0
+2. Stop Losses triggered (Total): 1
+   Stop Losses in last 24h: 0
+4. Win Rate (2h TF): 64.29% (9/14)
+
+3. Interval Comparison:
+   1h: PnL -0.2%, Win Rate 58.3% (12 trades)
+   2h: PnL 1.5%, Win Rate 64.3% (14 trades)
+   4h: PnL -3.3%, Win Rate 38.5% (13 trades)
+   -> Best performing interval: 2h

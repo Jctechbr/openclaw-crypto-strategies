@@ -1,0 +1,20 @@
+# Data and state
+*.csv
+*.json
+!openclaw.json
+
+# Environment and logs
+*.log
+.env
+.venv/
+venv/
+__pycache__/
+*.deb
+
+# System
+.DS_Store
+
+# OpenClaw specific (keep AGENTS.md, SOUL.md, etc.?)
+# The user might want to version control their agent config
+# but let's be careful with tools.md if it has secrets
+TOOLS.md

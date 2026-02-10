@@ -1,0 +1,16 @@
+Running Backtests...
+[1h] Trades: 9, Win Rate: 44.4%, PnL: -6.5%
+[2h] Trades: 8, Win Rate: 50.0%, PnL: 7.0%
+[4h] Trades: 10, Win Rate: 40.0%, PnL: -1.7%
+
+--- ANALYSIS ---
+1. Signals/Actions in last 24h (4h TF): 0
+2. Stop Losses triggered (Total): 6
+   Stop Losses in last 24h: 0
+4. Win Rate (4h TF): 40.00% (4/10)
+
+3. Interval Comparison:
+   1h: PnL -6.5%, Win Rate 44.4% (9 trades)
+   2h: PnL 7.0%, Win Rate 50.0% (8 trades)
+   4h: PnL -1.7%, Win Rate 40.0% (10 trades)
+   -> Best performing interval: 2h
