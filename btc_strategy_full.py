@@ -1,4 +1,47 @@
+# --- News and Sentiment Analysis Functions ---
+def get_crypto_news():
+    """Fetch recent Bitcoin/crypto news using web search"""
+    try:
+        # Import web search wrapper
+        sys.path.append('/home/ironman/.openclaw/workspace')
+        from web_search_wrapper import web_search, web_fetch
+        
+        # Use web_search function
+        search_result = web_search(
+            query="Bitcoin news market sentiment latest 24 hours",
+            count=5,
+            freshness="pd"
+        )
+        
+        # Store sentiment data status for reporting
+        global sentiment_data_status
+        sentiment_data_status = search_result.get('status', 'unknown')
+        
+        if search_result and search_result.get('results'):
+            news_articles = []
+            for item in search_result['results']:
+                try:
+                    content = web_fetch(item.get('url', ''), extract_mode='text', maxChars=2000)
+                    if content:
+                        news_articles.append({
+                            'title': item.get('title', ''),
+                            'url': item.get('url', ''),
+                            'content': content,
+                            'timestamp': item.get('published', '')
+                        })
+                except:
+                    continue
+            return news_articles
+        else:
+            return []
+    except Exception as e:
+        print(f'Error fetching news: {e}')
+        return []
+
 #!/usr/bin/env python3
+# Global variable for sentiment data status
+sentiment_data_status = 'unknown'
+
 import ccxt
 import pandas as pd
 import numpy as np
@@ -15,6 +58,110 @@ matplotlib.use('Agg')  # Use non-interactive backend
 
 CSV_FILE = '/home/ironman/.openclaw/workspace/btc_strategy_history.csv'
 STATE_FILE = '/home/ironman/.openclaw/workspace/btc_strategy_state.json'
+
+# --- News and Sentiment Analysis Functions ---
+
+def analyze_sentiment_with_oracle(news_articles, price_data):
+    """Simple sentiment analysis using basic keyword matching"""
+    try:
+        # Combine all news content
+        all_content = " ".join([
+            article.get('title', '') + " " + article.get('content', '')
+            for article in news_articles
+        ])
+        
+        # Simple keyword-based sentiment analysis
+        bullish_keywords = ['bull', 'rise', 'growth', 'positive', 'optimistic', 'rally', 'surge', 'moon', 'bullish', 'green']
+        bearish_keywords = ['bear', 'fall', 'drop', 'negative', 'pessimistic', 'crash', 'dump', 'bearish', 'red', 'decline']
+        
+        bullish_count = sum(1 for keyword in bullish_keywords if keyword.lower() in all_content.lower())
+        bearish_count = sum(1 for keyword in bearish_keywords if keyword.lower() in all_content.lower())
+        
+        # Determine sentiment
+        if bullish_count > bearish_count * 1.5:
+            sentiment = "BULLISH"
+            strength = "STRONG" if bullish_count > 5 else "MODERATE"
+        elif bearish_count > bullish_count * 1.5:
+            sentiment = "BEARISH"
+            strength = "STRONG" if bearish_count > 5 else "MODERATE"
+        else:
+            sentiment = "NEUTRAL"
+            strength = "MODERATE"
+            
+        # Extract factors (simplified)
+        factors = []
+        if bullish_count > 0:
+            factors.extend([k for k in bullish_keywords if k.lower() in all_content.lower()][:3])
+        if bearish_count > 0:
+            factors.extend([k for k in bearish_keywords if k.lower() in all_content.lower()][:3])
+            
+        return {
+            "sentiment": sentiment,
+            "strength": strength,
+            "factors": factors[:5],  # Top 5 factors
+            "impact": "MEDIUM",  # Default impact
+            "events": ["News analysis"]
+        }
+    except Exception as e:
+        print(f"Simple sentiment analysis failed: {e}")
+        return None
+            
+    except Exception as e:
+        print(f"Error in sentiment analysis: {e}")
+        return None
+
+def integrate_sentiment_analysis(technical_result, sentiment_data):
+    """Combine technical analysis with sentiment analysis"""
+    if not sentiment_data:
+        return technical_result
+    
+    # Extract sentiment information
+    sentiment = sentiment_data.get('sentiment', 'NEUTRAL')
+    strength = sentiment_data.get('strength', 'MODERATE')
+    impact = sentiment_data.get('impact', 'MEDIUM')
+    
+    # Modify technical analysis based on sentiment
+    original_score = technical_result['score']
+    reasons = technical_result['reasons']
+    
+    # Adjust score based on sentiment
+    sentiment_adjustment = 0
+    if sentiment == 'BULLISH':
+        if strength == 'STRONG':
+            sentiment_adjustment = 1
+        elif strength == 'MODERATE':
+            sentiment_adjustment = 0.5
+    elif sentiment == 'BEARISH':
+        if strength == 'STRONG':
+            sentiment_adjustment = -1
+        elif strength == 'MODERATE':
+            sentiment_adjustment = -0.5
+    
+    # Apply sentiment adjustment
+    new_score = original_score + sentiment_adjustment
+    
+    # Add sentiment to reasons
+    if sentiment != 'NEUTRAL':
+        reasons.append(f"Market sentiment: {sentiment} ({strength})")
+        if sentiment_data.get('factors'):
+            reasons.append(f"Sentiment factors: {', '.join(sentiment_data['factors'][:2])}")
+    
+    # Update the result
+    technical_result['score'] = int(round(new_score))
+    technical_result['sentiment_data'] = sentiment_data
+    technical_result['reasons'] = reasons
+    
+    # Adjust signal based on new score
+    if new_score >= 3:
+        technical_result['signal'] = "LONG"
+        technical_result['confidence'] = "HIGH" if new_score >= 4 else "MEDIUM"
+    elif new_score <= -3:
+        technical_result['signal'] = "SHORT"
+        technical_result['confidence'] = "HIGH" if new_score <= -4 else "MEDIUM"
+    else:
+        technical_result['signal'] = "NEUTRAL"
+    
+    return technical_result
 
 # --- Indicator Functions ---
 def calculate_rsi(series, period=14):
@@ -378,16 +525,34 @@ def send_report_via_telegram(report_text, chart_path=None):
 def main():
     try:
         exchange = ccxt.binance()
-        bars = exchange.fetch_ohlcv('BTC/USDT', timeframe='2h', limit=500)
+        bars = exchange.fetch_ohlcv('BTC/USDT', timeframe='4h', limit=500)
         df = pd.DataFrame(bars, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         
+        # Get technical analysis result
         result = analyze_strategy(df)
         
         if not result.get('valid', True):
-            print(f"BTC/USDT Strategy Report (2H)")
+            print(f"BTC/USDT Strategy Report (4H)")
             print(f"Status: {result['reasons'][0]}")
             return
+        
+        # Get sentiment analysis
+        print("🔍 Fetching market sentiment analysis...")
+        news_articles = get_crypto_news()
+        
+        if news_articles:
+            print(f"📰 Found {len(news_articles)} news articles for analysis")
+            sentiment_data = analyze_sentiment_with_oracle(news_articles, result['price'])
+            
+            if sentiment_data:
+                print("🧠 Oracle sentiment analysis completed")
+                # Integrate sentiment with technical analysis
+                result = integrate_sentiment_analysis(result, sentiment_data)
+            else:
+                print("⚠️ Sentiment analysis failed, using technical analysis only")
+        else:
+            print("⚠️ No news articles found, using technical analysis only")
         
         state = load_state()
         current_price = result['price']
@@ -571,11 +736,21 @@ def main():
         chart_path = generate_price_chart(df, "BTC/USDT")
         
         # Print enhanced report
-        print(f"BTC/USDT Strategy Report (2H)")
+        print(f"BTC/USDT Strategy Report (4H) - Enhanced with Sentiment Analysis")
         print(f"Price: ${result['price']:.2f}")
         print(f"Signal: {result['signal']}")
         print(f"Confidence: {result['confidence']}")
         print(f"Score: {result['score']}/5")
+        
+        # Print sentiment analysis if available
+        if result.get('sentiment_data'):
+            sentiment = result['sentiment_data']
+            print(f"\n📈 Market Sentiment Analysis:")
+            print(f"  Status: {sentiment_data_status.upper()} ({'Online data' if sentiment_data_status == 'online' else 'Mock data - not influencing results'})")
+            print(f"  Overall: {sentiment.get('sentiment', 'NEUTRAL')} ({sentiment.get('strength', 'MODERATE')})")
+            print(f"  Impact: {sentiment.get('impact', 'MEDIUM')}")
+            if sentiment.get('factors'):
+                print(f"  Key factors: {', '.join(sentiment['factors'][:3])}")
         
         # Print enhanced insights
         insights = generate_analysis_insights(result, df)
@@ -597,6 +772,19 @@ def main():
                 else:
                     unrealized = 100 * (state["entry_price"] - current_price) / state["entry_price"]
                 print(f"Unrealized P&L: {unrealized:.2f} USDT")
+            
+            # Log periodic report even if no signal change
+            log_to_csv(
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                current_price,
+                current_signal,
+                "REPORT",
+                f"{state['entry_price']:.2f}" if state['entry_price'] > 0 else "",
+                "",
+                "",
+                result['reasons'],
+                result['indicators']
+            )
         
         print("Reasons:")
         for r in result['reasons']:
@@ -613,15 +801,30 @@ def main():
         if chart_path:
             print(f"\n📈 Chart: {chart_path}")
             # Send report via Telegram
-            report_text = f"""BTC/USDT Strategy Report (2H)
+            # Build enhanced report text
+            report_text = f"""BTC/USDT Strategy Report (4H) - Enhanced with Sentiment Analysis
 Price: ${result['price']:.2f}
 Signal: {result['signal']}
 Confidence: {result['confidence']}
 Score: {result['score']}/5
 
 🔍 Enhanced Analysis:
-  {'\n  '.join(insights)}
+  {'\n  '.join(insights)}"""
+    
+    # Add sentiment analysis to report
+            if result.get('sentiment_data'):
+                sentiment = result['sentiment_data']
+                report_text += f"""
 
+📈 Market Sentiment Analysis:
+  Status: {sentiment_data_status.upper()} ({'Online data' if sentiment_data_status == 'online' else 'Mock data - not influencing results'})
+  Overall: {sentiment.get('sentiment', 'NEUTRAL')} ({sentiment.get('strength', 'MODERATE')})
+  Impact: {sentiment.get('impact', 'MEDIUM')}
+  Key factors: {', '.join(sentiment.get('factors', [])[:3])}
+  Events: {', '.join(sentiment.get('events', [])[:2])}"""
+    
+            report_text += f"""
+\n
 📊 Technical Indicators:
 RSI: {result['indicators']['RSI']:.2f}
 MACD: {result['indicators']['MACD']:.2f}
